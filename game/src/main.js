@@ -57,6 +57,15 @@ deployBtn.addEventListener('click', () => {
   inputCtl.lock();
 });
 
+// Clicking the canvas re-captures the mouse after ESC (standard FPS
+// behaviour); the buy menu's own clicks never reach the canvas.
+renderer.domElement.addEventListener('click', () => {
+  if (S.started && !S.over && !S.shotMode && !isBuyOpen()
+      && document.pointerLockElement !== renderer.domElement) {
+    inputCtl.lock();
+  }
+});
+
 // Screenshot mode: skip the start screen, auto-start, arrange the shot,
 // and flag readiness once a few frames have rendered (the harness waits
 // for this flag; the 'fight' shot raises it on the first live tracer).
@@ -204,5 +213,10 @@ function frame(now) {
     window.__shotReady = true;
   }
 }
+
+// Debug handle: the sim state is readable from the console (and from the
+// automated playthrough harness). Read-only by convention; the game never
+// reads it back.
+window.__tidebreak = { S };
 
 requestAnimationFrame(frame);
