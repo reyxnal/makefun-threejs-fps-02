@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { S } from './state.js';
 
-const RAIN_DROPS = 900;
+const RAIN_DROPS = 450;
 const TRACER_POOL = 24;
 const PARTICLE_MAX = 240;
 
@@ -95,7 +95,7 @@ export function initEffects(aScene, aCamera) {
   bombMesh = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(0.42, 0.24, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.6, metalness: 0.4 }),
+    new THREE.MeshLambertMaterial({ color: 0x2b2f36 }),
   );
   body.position.y = 0.12;
   bombLed = new THREE.Mesh(

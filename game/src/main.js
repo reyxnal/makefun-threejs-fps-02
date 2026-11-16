@@ -167,7 +167,11 @@ function step(dt) {
 // --- Fixed-step loop. ---
 let last = performance.now();
 let acc = 0;
-const MAX_STEPS = 5;
+const MAX_STEPS = 12; // sim JS is cheap; headroom keeps slow frames at full sim speed
+
+// ?perf=1 accumulates per-section timings on window.__perf (rolling means).
+const perfOn = new URLSearchParams(location.search).has('perf');
+const perfAcc = { sim: 0, hud: 0, fx: 0, render: 0, n: 0 };
 
 function drainEvents() {
   for (const e of S.events) {
@@ -189,6 +193,7 @@ function frame(now) {
   // 'fight' needs a live sim so a real tracer can fly.
   const liveShot = S.shotMode === 'fight';
   const stepping = S.started && !S.over && !S.paused && (!S.shotMode || liveShot);
+  const t0 = perfOn ? performance.now() : 0;
   if (stepping) {
     acc += elapsed;
     let n = 0;
@@ -199,12 +204,30 @@ function frame(now) {
     }
     if (n === MAX_STEPS) acc = 0; // drop backlog rather than spiral
   }
+  const t1 = perfOn ? performance.now() : 0;
   drainEvents();
   syncHud(elapsed);
   syncAudio();
+  const t2 = perfOn ? performance.now() : 0;
   updateEffects(elapsed, S.time);
   updateViewmodel(elapsed);
+  const t3 = perfOn ? performance.now() : 0;
   renderFrame(S.time);
+  if (perfOn) {
+    const t4 = performance.now();
+    perfAcc.sim += t1 - t0; perfAcc.hud += t2 - t1;
+    perfAcc.fx += t3 - t2; perfAcc.render += t4 - t3; perfAcc.n++;
+    if (perfAcc.n >= 30) {
+      window.__perf = {
+        sim: +(perfAcc.sim / perfAcc.n).toFixed(1),
+        hud: +(perfAcc.hud / perfAcc.n).toFixed(1),
+        fx: +(perfAcc.fx / perfAcc.n).toFixed(1),
+        render: +(perfAcc.render / perfAcc.n).toFixed(1),
+        fps: +(1000 / Math.max(1, elapsed * 1000)).toFixed(1),
+      };
+      perfAcc.sim = perfAcc.hud = perfAcc.fx = perfAcc.render = 0; perfAcc.n = 0;
+    }
+  }
   if (S.shotMode && S.shotMode !== 'fight' && ++shotFrames === 4) {
     window.__shotReady = true;
   }

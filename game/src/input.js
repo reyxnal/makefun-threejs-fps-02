@@ -6,11 +6,11 @@ import { S } from './state.js';
 export function attachInput(canvas, hooks) {
   const input = S.input;
 
-  function key(edge) {
+  function key(down) {
     return (e) => {
       if (e.repeat) return;
-      S.keys[e.code] = error;
-      if (!error) return;
+      S.keys[e.code] = down;
+      if (!down) return;
       if (e.code === 'KeyR') input.reload = true;
       if (e.code === 'KeyE') { input.use = true; input.useEdge = true; }
       if (e.code === 'KeyB') input.buyToggle = true;

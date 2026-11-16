@@ -10,10 +10,10 @@ import { currentWeaponId } from './player.js';
 let camera, rig, guns = {}, flashQuad, flashT = 0;
 let kick = 0, kickRot = 0, adsAmt = 0, curWeapon = null, switchT = 0;
 
-const METAL = new THREE.MeshStandardMaterial({ color: 0x3d454f, roughness: 0.45, metalness: 0.6 });
-const DARK = new THREE.MeshStandardMaterial({ color: 0x2a2f36, roughness: 0.6, metalness: 0.4 });
-const GRIP = new THREE.MeshStandardMaterial({ color: 0x4a3b28, roughness: 0.85 });
-const ACCENT = new THREE.MeshStandardMaterial({ color: 0x8a6a2a, roughness: 0.5, metalness: 0.5 });
+const METAL = new THREE.MeshStandardMaterial({ color: 0x4a545f, roughness: 0.5, metalness: 0.25 });
+const DARK = new THREE.MeshStandardMaterial({ color: 0x363d46, roughness: 0.6, metalness: 0.2 });
+const GRIP = new THREE.MeshStandardMaterial({ color: 0x5a4a33, roughness: 0.85 });
+const ACCENT = new THREE.MeshStandardMaterial({ color: 0x9a7a35, roughness: 0.5, metalness: 0.25 });
 
 function box(w, h, d, mat, x, y, z, rx = 0) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);

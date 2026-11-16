@@ -6,6 +6,7 @@
 // warehouse yard.
 import * as THREE from 'three';
 import { PALETTE, MAP } from './config.js';
+import { mergeParts, mat4 } from './merge.js';
 import {
   containerTexture, concreteTexture, groundTexture, hazardTexture,
   metalTexture, letterTexture, skylineTexture,
@@ -80,7 +81,7 @@ const EDGES = [
 ];
 
 const LAMPS = [
-  { x: -12, z: -16, color: PALETTE.lamp, light: true },
+  { x: -12, z: -16, color: PALETTE.lamp, light: false },
   { x: 12, z: -16, color: PALETTE.lamp, light: false },
   { x: -24, z: 2, color: PALETTE.lamp, light: true },
   { x: 24, z: 2, color: PALETTE.lamp, light: false },
@@ -90,35 +91,40 @@ const LAMPS = [
 
 export function buildMap(scene) {
   const mats = {
-    red: new THREE.MeshStandardMaterial({ map: containerTexture('#8e3428', 11), roughness: 0.85 }),
-    teal: new THREE.MeshStandardMaterial({ map: containerTexture('#2a5f5e', 23), roughness: 0.85 }),
-    ochre: new THREE.MeshStandardMaterial({ map: containerTexture('#9c7423', 37), roughness: 0.85 }),
-    blue: new THREE.MeshStandardMaterial({ map: containerTexture('#2c4563', 51), roughness: 0.85 }),
-    concrete: new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness: 0.95 }),
-    metal: new THREE.MeshStandardMaterial({ map: metalTexture(), roughness: 0.6, metalness: 0.45 }),
-    crate: new THREE.MeshStandardMaterial({ map: containerTexture('#6e5230', 71), roughness: 0.9 }),
-    barrel: new THREE.MeshStandardMaterial({ color: 0x7a3030, roughness: 0.6, metalness: 0.3 }),
+    red: new THREE.MeshLambertMaterial({ map: containerTexture('#8e3428', 11) }),
+    teal: new THREE.MeshLambertMaterial({ map: containerTexture('#2a5f5e', 23) }),
+    ochre: new THREE.MeshLambertMaterial({ map: containerTexture('#9c7423', 37) }),
+    blue: new THREE.MeshLambertMaterial({ map: containerTexture('#2c4563', 51) }),
+    concrete: new THREE.MeshLambertMaterial({ map: concreteTexture() }),
+    metal: new THREE.MeshLambertMaterial({ map: metalTexture() }),
+    crate: new THREE.MeshLambertMaterial({ map: containerTexture('#6e5230', 71) }),
+    barrel: new THREE.MeshLambertMaterial({ color: 0x7a3030 }),
   };
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   const colliders = [];
 
+  // Static boxes are merged per material: one draw call per material
+  // instead of one per box. Collision volumes are recorded separately
+  // (the same data drives both, so they can never drift apart).
+  const byMat = new Map();
   for (const b of BOXES) {
-    const mesh = new THREE.Mesh(boxGeo, mats[b.mat]);
-    mesh.position.set(b.x, b.y0 + b.h / 2, b.z);
-    mesh.scale.set(b.w, b.h, b.d);
-    mesh.castShadow = false; mesh.receiveShadow = false;
-    scene.add(mesh);
+    if (!byMat.has(b.mat)) byMat.set(b.mat, []);
+    byMat.get(b.mat).push({
+      geo: boxGeo,
+      matrix: mat4(b.x, b.y0 + b.h / 2, b.z, 0, 0, 0, b.w, b.h, b.d),
+    });
     colliders.push({
       minX: b.x - b.w / 2, maxX: b.x + b.w / 2,
       minZ: b.z - b.d / 2, maxZ: b.z + b.d / 2,
       y0: b.y0, y1: b.y0 + b.h,
     });
   }
+  for (const [mat, parts] of byMat) scene.add(mergeParts(parts, mats[mat]));
 
   // Ground: one big wet asphalt plane.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(150, 150),
-    new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 0.55, metalness: 0.15 }),
+    new THREE.MeshLambertMaterial({ map: groundTexture() }),
   );
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
@@ -136,7 +142,7 @@ export function buildMap(scene) {
   }
 
   // Hazard strips at the site entrances.
-  const hazardMat = new THREE.MeshStandardMaterial({ map: hazardTexture(), roughness: 0.8 });
+  const hazardMat = new THREE.MeshLambertMaterial({ map: hazardTexture() });
   for (const [x, z, w] of [[-23, 0.5, 8], [23, 1.2, 6]]) {
     const strip = new THREE.Mesh(boxGeo, hazardMat);
     strip.scale.set(w, 0.06, 1);
@@ -144,68 +150,79 @@ export function buildMap(scene) {
     scene.add(strip);
   }
 
-  // The crane: mast, jib over site A, and a swaying hook.
+  // The crane: mast + jib merged (static), cab merged into the same metal
+  // mesh family by colour, and a swaying hook kept separate (it animates).
   const craneMat = mats.metal;
-  const mast = new THREE.Mesh(boxGeo, craneMat);
-  mast.scale.set(1.4, 13, 1.4); mast.position.set(-23, 6.5, 10);
-  scene.add(mast);
-  const jib = new THREE.Mesh(boxGeo, craneMat);
-  jib.scale.set(20, 0.9, 0.9); jib.position.set(-14, 12.4, 10);
-  scene.add(jib);
-  const counterJib = new THREE.Mesh(boxGeo, craneMat);
-  counterJib.scale.set(7, 0.9, 0.9); counterJib.position.set(-29.5, 12.4, 10);
-  scene.add(counterJib);
-  const cab = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: 0x222a33, roughness: 0.5, metalness: 0.4 }));
+  scene.add(mergeParts([
+    { geo: boxGeo, matrix: mat4(-23, 6.5, 10, 0, 0, 0, 1.4, 13, 1.4) },
+    { geo: boxGeo, matrix: mat4(-14, 12.4, 10, 0, 0, 0, 20, 0.9, 0.9) },
+    { geo: boxGeo, matrix: mat4(-29.5, 12.4, 10, 0, 0, 0, 7, 0.9, 0.9) },
+  ], craneMat));
+  const cab = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({ color: 0x222a33 }));
   cab.scale.set(2.2, 1.8, 2); cab.position.set(-23, 10.6, 10);
   scene.add(cab);
   const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 6, 5), craneMat);
   cable.position.set(-8, 9.4, 10);
   scene.add(cable);
-  const hook = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: 0xd8a020, roughness: 0.5, metalness: 0.5 }));
+  const hook = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({ color: 0xd8a020 }));
   hook.scale.set(0.9, 0.9, 0.9); hook.position.set(-8, 6.2, 10);
   scene.add(hook);
 
-  // Forklifts: body + mast + forks, two of them in mid.
+  // Forklifts: body + mast + seat merged per lift (the whole lift is one
+  // static pose, so per-part materials merge into two meshes per lift).
+  const liftYellow = new THREE.MeshLambertMaterial({ color: 0xc78d1e });
+  const liftDark = new THREE.MeshLambertMaterial({ color: 0x1c2128 });
   for (const [fx, fz, ry] of [[-5, -1, 0.4], [5, 1, Math.PI - 0.3]]) {
     const lift = new THREE.Group();
-    const body = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: 0xc78d1e, roughness: 0.6 }));
-    body.scale.set(1.6, 0.9, 2.4); body.position.y = 0.6; lift.add(body);
-    const mastF = new THREE.Mesh(boxGeo, craneMat);
-    mastF.scale.set(1.4, 2.2, 0.25); mastF.position.set(0, 1.2, -1.25); lift.add(mastF);
-    const seat = new THREE.Mesh(boxGeo, new THREE.MeshStandardMaterial({ color: 0x1c2128 }));
-    seat.scale.set(0.7, 0.7, 0.7); seat.position.set(0, 1.25, 0.3); lift.add(seat);
+    const body = mergeParts([
+      { geo: boxGeo, matrix: mat4(0, 0.6, 0, 0, 0, 0, 1.6, 0.9, 2.4) },
+    ], liftYellow);
+    const dark = mergeParts([
+      { geo: boxGeo, matrix: mat4(0, 1.2, -1.25, 0, 0, 0, 1.4, 2.2, 0.25) },
+      { geo: boxGeo, matrix: mat4(0, 1.25, 0.3, 0, 0, 0, 0.7, 0.7, 0.7) },
+    ], liftDark);
+    lift.add(body, dark);
     lift.position.set(fx, 0, fz); lift.rotation.y = ry;
     scene.add(lift);
     colliders.push({ minX: fx - 1, maxX: fx + 1, minZ: fz - 1.4, maxZ: fz + 1.4, y0: 0, y1: 1.6 });
   }
 
-  // Lamp poles: emissive heads everywhere, real lights only on three of them.
+  // Lamp poles merged into one mesh; heads merged per colour. Real lights
+  // stay on two lamps only (fragment cost scales with light count).
   const poleGeo = new THREE.CylinderGeometry(0.09, 0.12, 5.4, 6);
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x2a2f36, roughness: 0.7, metalness: 0.4 });
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x2a2f36 });
+  scene.add(mergeParts(LAMPS.map((lamp) => ({
+    geo: poleGeo,
+    matrix: mat4(lamp.x, lamp.deck ? 6.7 : 2.7, lamp.z),
+  })), poleMat));
   const headGeo = new THREE.SphereGeometry(0.28, 10, 8);
+  const headsByColor = new Map();
   for (const lamp of LAMPS) {
-    const pole = new THREE.Mesh(poleGeo, poleMat);
-    pole.position.set(lamp.x, lamp.deck ? 6.7 : 2.7, lamp.z);
-    scene.add(pole);
-    const head = new THREE.Mesh(headGeo, new THREE.MeshBasicMaterial({ color: lamp.color }));
-    head.position.set(lamp.x, lamp.deck ? 9.4 : 5.4, lamp.z);
-    scene.add(head);
+    if (!headsByColor.has(lamp.color)) headsByColor.set(lamp.color, []);
+    headsByColor.get(lamp.color).push({
+      geo: headGeo,
+      matrix: mat4(lamp.x, lamp.deck ? 9.4 : 5.4, lamp.z),
+    });
     if (lamp.light) {
       const light = new THREE.PointLight(lamp.color, 85, 30, 1.8);
       light.position.set(lamp.x, 5.2, lamp.z);
       scene.add(light);
     }
   }
+  for (const [color, parts] of headsByColor) {
+    scene.add(mergeParts(parts, new THREE.MeshBasicMaterial({ color })));
+  }
 
-  // Distant port skyline: dark slabs with lit windows, outside the walls.
+  // Distant port skyline: dark slabs with lit windows, merged per texture.
   const skyMat = new THREE.MeshBasicMaterial({ map: skylineTexture(3) });
   const skyMat2 = new THREE.MeshBasicMaterial({ map: skylineTexture(9) });
   const skyline = [[-52, -30, 26, 18], [-8, -48, 34, 24], [40, -38, 28, 15], [56, 6, 20, 20], [44, 40, 30, 14], [-4, 52, 40, 20], [-54, 28, 24, 16], [58, -24, 18, 26]];
+  const skyGroups = [[], []];
   skyline.forEach(([x, z, w, h], i) => {
-    const slab = new THREE.Mesh(boxGeo, i % 2 ? skyMat : skyMat2);
-    slab.scale.set(w, h, 2); slab.position.set(x, h / 2 - 1, z);
-    scene.add(slab);
+    skyGroups[i % 2].push({ geo: boxGeo, matrix: mat4(x, h / 2 - 1, z, 0, 0, 0, w, h, 2) });
   });
+  scene.add(mergeParts(skyGroups[0], skyMat));
+  scene.add(mergeParts(skyGroups[1], skyMat2));
 
   // Stars: a thin shell of points high above the fog.
   const starGeo = new THREE.BufferGeometry();
