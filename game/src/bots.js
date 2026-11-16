@@ -130,6 +130,15 @@ function think(map, f) {
   const b = f.brain;
   if (f.flash > 0) { b.state = 'hold'; return; }
 
+  // A bot committed to a bomb channel does not abandon it for a glimpse of
+  // an enemy: the counterplay is killing the channeler, not being seen.
+  // (The noise branch below already excludes channel states; the engage
+  // branch must too, or a defuse never survives first contact.)
+  if (f.team === 'defend' && S.bomb.state === 'planted' && b.state === 'defuse'
+      && Math.hypot(S.bomb.x - f.x, S.bomb.z - f.z) <= 2.2) return;
+  if (f.team === 'attack' && S.bomb.carrier === f.index && S.bomb.state === 'carried'
+      && b.state === 'plant' && inSite(f, b.route === 'B' ? 'B' : 'A')) return;
+
   const enemy = nearestVisibleEnemy(map, f);
   if (enemy) {
     b.lastSeenX = enemy.x; b.lastSeenZ = enemy.z; b.lastSeenT = S.time;

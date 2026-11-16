@@ -15,11 +15,17 @@ const END_TIME = 3.5; // seconds the round banner stays up
 
 export function startMatch() {
   S.fighters.length = 0;
+  // Roster order IS index order: attackers 0-4, then defenders 5-9. Array
+  // position === fighter index is a load-bearing invariant: the bomb
+  // carrier, bot targets, grenade owners, killfeed entries and the
+  // spectate target all index S.fighters by the index field.
   for (let i = 0; i < 5; i++) {
     const [ax, az] = MAP.spawns.attack[i];
-    const [dx, dz] = MAP.spawns.defend[i];
     if (i === 0) S.fighters.push(makeFighter(0, 'attack', 'You', false, ax, az));
     else S.fighters.push(makeFighter(i, 'attack', BOT_NAMES.attack[i], true, ax, az));
+  }
+  for (let i = 0; i < 5; i++) {
+    const [dx, dz] = MAP.spawns.defend[i];
     S.fighters.push(makeFighter(5 + i, 'defend', BOT_NAMES.defend[i], true, dx, dz));
   }
   S.score.attack = 0; S.score.defend = 0;

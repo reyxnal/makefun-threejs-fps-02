@@ -35,7 +35,7 @@ export function attachInput(canvas, hooks) {
 
   document.addEventListener('mousedown', (e) => {
     if (document.pointerLockElement !== canvas && !S.shotMode) return;
-    if (e.button === 0) input.fire = true;
+    if (e.button === 0) { input.fire = true; input.fireEdge = true; }
     if (e.button === 2) input.ads = true;
   });
   document.addEventListener('mouseup', (e) => {

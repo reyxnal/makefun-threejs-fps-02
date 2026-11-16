@@ -78,7 +78,6 @@ if (S.shotMode) {
 }
 
 // --- Player combat actions, resolved once per sim step. ---
-let prevFire = false;
 let noiseClearT = 0;
 const NADE_ORDER = ['frag', 'smoke', 'flash'];
 
@@ -88,7 +87,7 @@ function playerActions(dt) {
   if (!f || !f.alive) {
     input.reload = false; input.digit = 0;
     input.nadeCycle = false; input.nadeThrow = false; input.buyToggle = false;
-    prevFire = input.fire;
+    input.fireEdge = false;
     return;
   }
   if (input.buyToggle) {
@@ -101,7 +100,7 @@ function playerActions(dt) {
       buyItem(f, String(input.digit));
       input.digit = 0;
     }
-    prevFire = input.fire;
+    input.fireEdge = false;
     return;
   }
   if (input.digit > 0) {
@@ -122,13 +121,14 @@ function playerActions(dt) {
     input.nadeThrow = false;
     throwGrenade(f, f.nadeSel);
   }
-  // Fire: automatics spray while held; semi-autos need a fresh press.
+  // Fire: automatics spray while held; semi-autos fire on the latched
+  // press edge, so a click is never lost between sim steps on slow frames.
   const w = weaponOf(f);
-  const wantFire = w.auto ? input.fire : (input.fire && !prevFire);
+  const wantFire = w.auto ? input.fire : input.fireEdge;
+  input.fireEdge = false; // consumed every step, fired or not
   if (wantFire && (S.phase === 'live' || S.phase === 'planted')) {
     tryFire(map, f);
   }
-  prevFire = input.fire;
 }
 
 function step(dt) {
