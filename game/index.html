@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tidebreak Terminal — a three.js tactical FPS</title>
+<style>
+  :root {
+    --ink: #e9e6dc;
+    --muted: #9aa7b4;
+    --panel: rgba(8, 13, 22, 0.72);
+    --line: rgba(233, 230, 220, 0.16);
+    --amber: #ffb340;
+    --cyan: #4fc3e8;
+    --red: #ff5a4e;
+    --green: #7ddb6a;
+    --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #070b14; color: var(--ink); font-family: var(--font-ui); }
+  #view, #view canvas { position: fixed; inset: 0; display: block; }
+  #view canvas { width: 100%; height: 100%; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+  #hud.on { display: block; }
+
+  #xhair { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  #xhair i { position: absolute; background: var(--ink); box-shadow: 0 0 3px #000; }
+  #xhair .h { width: 9px; height: 2px; top: -1px; }
+  #xhair .v { width: 2px; height: 9px; left: -1px; }
+  #xhair .dot { width: 2px; height: 2px; left: -1px; top: -1px; }
+
+  #hitmark { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; }
+  #hitmark i { position: absolute; width: 10px; height: 2px; background: #fff; box-shadow: 0 0 4px #000; }
+  #hitmark .a { transform: translate(-13px, -10px) rotate(45deg); }
+  #hitmark .b { transform: translate(3px, -10px) rotate(-45deg); }
+  #hitmark .c { transform: translate(-13px, 8px) rotate(-45deg); }
+  #hitmark .d { transform: translate(3px, 8px) rotate(45deg); }
+  #hitmark.kill i { background: var(--red); }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; backdrop-filter: blur(3px); }
+  #vitals { position: absolute; left: 18px; bottom: 18px; min-width: 230px; }
+  #vitals .row { display: flex; align-items: baseline; gap: 10px; }
+  #hp-num { font: 700 30px/1 var(--font-num); }
+  #hp-bar, #ar-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 5px; }
+  #hp-fill { height: 100%; width: 100%; background: var(--green); }
+  #ar-fill { height: 100%; width: 0%; background: var(--cyan); }
+  #vitals .lbl { font-size: 11px; letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+  #ar-num { font: 700 15px var(--font-num); color: var(--cyan); }
+
+  #ammo-box { position: absolute; right: 18px; bottom: 18px; text-align: right; }
+  #ammo-mag { font: 700 34px/1 var(--font-num); }
+  #ammo-res { font: 400 17px var(--font-num); color: var(--muted); }
+  #wpn-name { font-size: 12px; letter-spacing: .14em; color: var(--amber); text-transform: uppercase; margin-top: 3px; }
+  #nade-row { font: 400 12px var(--font-num); color: var(--muted); margin-top: 4px; }
+  #nade-row b { color: var(--ink); }
+
+  #topbar { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; text-align: center; }
+  #score-a { font: 700 26px var(--font-num); color: var(--amber); }
+  #score-b { font: 700 26px var(--font-num); color: var(--cyan); }
+  #clock { font: 700 26px var(--font-num); min-width: 86px; }
+  #clock.low { color: var(--red); }
+  #round-lbl { font-size: 11px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+  #bomb-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; margin-top: 5px; display: none; }
+  #bomb-fill { height: 100%; width: 100%; background: var(--red); }
+  #bomb-lbl { font: 700 12px var(--font-num); color: var(--red); letter-spacing: .1em; display: none; }
+
+  #money-box { position: absolute; left: 18px; top: 14px; font: 700 20px var(--font-num); color: var(--green); }
+  #money-box .lbl { display: block; font: 400 10px var(--font-ui); letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+  #money-box.flash { animation: moneypop .5s ease; }
+  @keyframes moneypop { 0% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+  #killfeed { position: absolute; right: 18px; top: 14px; text-align: right; font-size: 13px; line-height: 1.7; }
+  #killfeed div { text-shadow: 0 1px 3px #000; }
+  #killfeed .atk { color: var(--amber); }
+  #killfeed .def { color: var(--cyan); }
+  #killfeed .wpn { color: var(--muted); font-size: 11px; }
+
+  #banner { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); text-align: center; display: none; }
+  #banner .big { font: 800 44px/1.1 var(--font-ui); letter-spacing: .06em; text-shadow: 0 2px 14px #000; }
+  #banner .sub { font-size: 15px; color: var(--muted); margin-top: 6px; text-shadow: 0 1px 6px #000; }
+  #banner.atk .big { color: var(--amber); }
+  #banner.def .big { color: var(--cyan); }
+
+  #prompt { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-size: 15px; padding: 7px 14px; display: none; }
+  #prompt b { color: var(--amber); }
+  #progress { position: absolute; left: 50%; top: 63%; transform: translateX(-50%); width: 240px; height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; display: none; }
+  #progress-fill { height: 100%; width: 0%; background: var(--amber); }
+
+  #vignette { position: absolute; inset: 0; box-shadow: inset 0 0 140px 40px rgba(255, 30, 20, .55); opacity: 0; }
+  #flashov { position: absolute; inset: 0; background: #fff; opacity: 0; }
+  #fadeov { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .4s; }
+
+  #teamlist { position: absolute; left: 18px; top: 84px; font-size: 12px; line-height: 1.8; text-shadow: 0 1px 3px #000; }
+  #teamlist .dead { opacity: .35; text-decoration: line-through; }
+  #teamlist .atk { color: var(--amber); }
+  #teamlist .def { color: var(--cyan); }
+  #teamlist .me { font-weight: 700; }
+
+  /* ---------- Buy menu ---------- */
+  #buy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 520px; display: none; pointer-events: auto; }
+  #buy.on { display: block; }
+  #buy h2 { margin: 2px 0 4px; font-size: 19px; letter-spacing: .08em; }
+  #buy .sub { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  #buy table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  #buy td { padding: 6px 6px; border-top: 1px solid var(--line); }
+  #buy td.key { width: 30px; font-family: var(--font-num); color: var(--amber); }
+  #buy td.price { text-align: right; font-family: var(--font-num); color: var(--green); width: 70px; }
+  #buy td.own { text-align: right; width: 60px; color: var(--muted); font-size: 12px; }
+  #buy tr.cant td { opacity: .4; }
+  #buy tr:hover td { background: rgba(255,179,64,.08); }
+  #buy .foot { margin-top: 9px; font-size: 12px; color: var(--muted); }
+
+  /* ---------- Start / end screens ---------- */
+  .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: radial-gradient(ellipse at 50% 38%, rgba(20,34,58,.88), rgba(4,6,10,.96) 75%); z-index: 10; }
+  .screen h1 { font-size: 54px; margin: 0; letter-spacing: .1em; }
+  .screen h1 span { color: var(--amber); }
+  .screen .tag { color: var(--muted); margin: 8px 0 20px; font-size: 16px; }
+  .screen .controls { display: grid; grid-template-columns: auto auto; gap: 4px 18px; text-align: left; font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  .screen .controls b { color: var(--ink); font-family: var(--font-num); font-weight: 600; text-align: right; }
+  .btn { pointer-events: auto; cursor: pointer; font: 700 17px var(--font-ui); letter-spacing: .1em; color: #0a0e14; background: var(--amber); border: 0; border-radius: 6px; padding: 13px 34px; }
+  .btn:hover { filter: brightness(1.1); }
+  .screen .fine { margin-top: 18px; font-size: 12px; color: var(--muted); max-width: 520px; line-height: 1.6; }
+  #end-screen { display: none; }
+  #end-screen .big { font-size: 44px; font-weight: 800; letter-spacing: .06em; }
+  #spectate { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); font-size: 14px; color: var(--muted); display: none; text-shadow: 0 1px 4px #000; }
+</style>
+</head>
+<body>
+<div id="view"></div>
+
+<div id="hud">
+  <div id="xhair"><i class="h" style="left:-16px"></i><i class="h" style="left:7px"></i><i class="v" style="top:-16px"></i><i class="v" style="top:7px"></i><i class="dot"></i></div>
+  <div id="hitmark"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i></div>
+  <div id="vignette"></div>
+  <div id="flashov"></div>
+  <div id="fadeov"></div>
+
+  <div id="topbar" class="panel">
+    <div><div id="score-a">0</div><div class="lbl" style="font-size:10px;color:var(--muted)">BREAKERS</div></div>
+    <div>
+      <div id="clock">1:40</div>
+      <div id="round-lbl">ROUND 1 · FIRST TO 8</div>
+      <div id="bomb-lbl">CHARGE PLANTED</div>
+      <div id="bomb-bar"><div id="bomb-fill"></div></div>
+    </div>
+    <div><div id="score-b">0</div><div class="lbl" style="font-size:10px;color:var(--muted)">WATCH</div></div>
+  </div>
+
+  <div id="money-box" class="panel"><span class="lbl">Funds</span><span id="money-num">$800</span></div>
+  <div id="teamlist"></div>
+  <div id="killfeed"></div>
+
+  <div id="vitals" class="panel">
+    <div class="row"><span id="hp-num">100</span><span class="lbl">Health</span><span style="flex:1"></span><span id="ar-num"></span><span class="lbl">Armour</span></div>
+    <div id="hp-bar"><div id="hp-fill"></div></div>
+    <div id="ar-bar"><div id="ar-fill"></div></div>
+  </div>
+
+  <div id="ammo-box" class="panel">
+    <div><span id="ammo-mag">12</span><span id="ammo-res"> / 48</span></div>
+    <div id="wpn-name">P9 SIDEARM</div>
+    <div id="nade-row"></div>
+  </div>
+
+  <div id="banner"><div class="big"></div><div class="sub"></div></div>
+  <div id="prompt" class="panel"></div>
+  <div id="progress"><div id="progress-fill"></div></div>
+  <div id="spectate">You are down — spectating a teammate. Next round you redeploy.</div>
+
+  <div id="buy" class="panel">
+    <h2>BUY MENU</h2>
+    <div class="sub">Freeze time — press a number key or click. B closes.</div>
+    <table id="buy-rows"></table>
+    <div class="foot">Kills pay $300 · round win $1,400 · planting pays $300. Armour halves damage.</div>
+  </div>
+</div>
+
+<div id="start-screen" class="screen">
+  <h1>TIDEBREAK <span>TERMINAL</span></h1>
+  <div class="tag">A round-based tactical FPS in a rain-drowned container port. Five against five. Plant the charge — or stop it.</div>
+  <div class="controls">
+    <b>W A S D</b><span>Move</span>
+    <b>Mouse</b><span>Look / fire (left button)</span>
+    <b>Right mouse</b><span>Aim down sights</span>
+    <b>Shift / Ctrl</b><span>Walk quietly / crouch</span>
+    <b>Space</b><span>Jump</span>
+    <b>R</b><span>Reload</span>
+    <b>1 – 4</b><span>Weapons</span>
+    <b>Q / G</b><span>Pick grenade / throw</span>
+    <b>B</b><span>Buy menu (freeze time)</span>
+    <b>E (hold)</b><span>Plant / defuse the charge</span>
+  </div>
+  <button class="btn" id="deploy-btn">CLICK TO DEPLOY</button>
+  <div class="fine">First team to 8 rounds takes the match. Headshots deal triple damage. Stopping to aim beats spraying on the move — every time.</div>
+</div>
+
+<div id="end-screen" class="screen">
+  <div class="big" id="end-title"></div>
+  <div class="tag" id="end-sub"></div>
+  <button class="btn" id="again-btn">PLAY AGAIN</button>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
