@@ -1,4 +1,4 @@
-// Tuning, palette and weapon definitions for Tidebreak Terminal.
+// Tuning, palette and weapon definitions for Cranewatch.
 // One place for every number the sim reads; nothing here imports three.js,
 // so the dossier text stays readable and the numbers are easy to audit.
 

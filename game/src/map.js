@@ -1,4 +1,4 @@
-// Tidebreak Terminal's map: one data table drives the visible geometry, the
+// Cranewatch's map: one data table drives the visible geometry, the
 // collision volumes, the walkable heights and the bot waypoint graph, so what
 // the player sees is exactly what the simulation collides with.
 // Coordinates: x east, z south, metres. Attackers spawn north (z < 0),
@@ -141,7 +141,43 @@ export function buildMap(scene) {
     scene.add(decal);
   }
 
-  // Hazard strips at the site entrances.
+  // Giant site signs: the letter each site is called by, hung where an
+  // attacker reads it on approach — on the crane mast for A, on a gantry
+  // over the warehouse door for B. Unlit faces, so they read at night;
+  // the letters sit above head height and carry no gameplay volume of
+  // their own (the gantry posts do, honestly, at the door edges).
+  function siteSign(letter, color, x, y, z) {
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(4.6, 4.6, 0.18),
+      new THREE.MeshLambertMaterial({ color: 0x14181f }),
+    );
+    panel.position.set(x, y, z);
+    scene.add(panel);
+    const face = new THREE.Mesh(
+      new THREE.PlaneGeometry(4, 4),
+      new THREE.MeshBasicMaterial({
+        map: letterTexture(letter, color), transparent: true, side: THREE.DoubleSide,
+      }),
+    );
+    face.position.set(x, y, z - 0.1);
+    scene.add(face);
+  }
+  siteSign('A', 'rgba(255,179,64,0.95)', -23, 7.2, 9.15);
+  // Gantry over the warehouse north door: two posts, one beam, the sign
+  // hung below it.
+  const gantryMat = new THREE.MeshLambertMaterial({ color: 0x2a2f36 });
+  for (const px of [20.5, 25.5]) {
+    const post = new THREE.Mesh(boxGeo, gantryMat);
+    post.scale.set(0.18, 7, 0.18);
+    post.position.set(px, 3.5, 2);
+    scene.add(post);
+    colliders.push({ minX: px - 0.15, maxX: px + 0.15, minZ: 1.85, maxZ: 2.15, y0: 0, y1: 7 });
+  }
+  const beam = new THREE.Mesh(boxGeo, gantryMat);
+  beam.scale.set(6, 0.3, 0.3);
+  beam.position.set(23, 6.85, 2);
+  scene.add(beam);
+  siteSign('B', 'rgba(79,195,232,0.95)', 23, 4.6, 2);
   const hazardMat = new THREE.MeshLambertMaterial({ map: hazardTexture() });
   for (const [x, z, w] of [[-23, 0.5, 8], [23, 1.2, 6]]) {
     const strip = new THREE.Mesh(boxGeo, hazardMat);

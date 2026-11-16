@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tidebreak Terminal — a three.js tactical FPS</title>
+<title>Cranewatch — a three.js tactical FPS</title>
 <style>
   :root {
     --ink: #e9e6dc;
@@ -95,6 +95,10 @@
 
   #teamlist { position: absolute; left: 18px; top: 84px; font-size: 12px; line-height: 1.8; text-shadow: 0 1px 3px #000; }
 
+  #radio-feed { position: absolute; left: 18px; top: 312px; font-size: 12.5px; line-height: 1.65; text-shadow: 0 1px 3px #000; max-width: 280px; }
+  #radio-feed .radio-h { font-size: 10px; letter-spacing: .16em; color: var(--muted); }
+  #radio-feed b { color: var(--amber); }
+
   #minimap { position: absolute; left: 18px; bottom: 118px; border: 1px solid var(--line); border-radius: 6px; }
   #teamlist .dead { opacity: .35; text-decoration: line-through; }
   #teamlist .atk { color: var(--amber); }
@@ -153,6 +157,7 @@
 
   <div id="money-box" class="panel"><span class="lbl">Funds</span><span id="money-num">$800</span></div>
   <div id="teamlist"></div>
+  <div id="radio-feed"></div>
   <canvas id="minimap" width="148" height="112"></canvas>
   <div id="killfeed"></div>
 
@@ -182,8 +187,8 @@
 </div>
 
 <div id="start-screen" class="screen">
-  <h1>TIDEBREAK <span>TERMINAL</span></h1>
-  <div class="tag">A round-based tactical FPS in a rain-drowned container port. Five against five. Plant the charge — or stop it.</div>
+  <h1>CRANE<span>WATCH</span></h1>
+  <div class="tag">A round-based tactical FPS in a rain-drowned container port. Five against five. Bots that hear, a radio that talks. Plant the charge — or stop it.</div>
   <div class="controls">
     <b>W A S D</b><span>Move</span>
     <b>Mouse</b><span>Look / fire (left button)</span>

@@ -1,4 +1,4 @@
-// Tidebreak Terminal — entry program (Node 22, standard library only).
+// Cranewatch — entry program (Node 22, standard library only).
 //
 // The game itself is the static game/ folder beside this file: plain HTML
 // + ES modules, three.js from the import map, no build step. This program

@@ -14,6 +14,32 @@ import { currentWeaponId } from './player.js';
 
 const THINK_DT = 0.1;
 const REACTION = [0.5, 0.28]; // seconds, scaled by (1 - skill)
+const RADIO_GAP = 3.5; // seconds between one bot's callouts
+
+// Named zones for the radio: the same words the HUD banner and minimap use.
+function zoneName(x, z) {
+  for (const key of ['A', 'B']) {
+    const s = MAP.sites[key];
+    if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) return `site ${key}`;
+  }
+  if (x < -14) return 'A lane';
+  if (x > 14) return 'B lane';
+  return 'mid';
+}
+
+// Teammate radio: only the player's own team is heard — the enemy's radio
+// is not ours to listen to. Throttled per bot so the feed stays readable
+// in a firefight; every callout also drops a minimap ping at the place it
+// refers to, so the player can look at the sound.
+function radio(f, text, x, z) {
+  if (f.team !== 'attack' || !f.isBot) return;
+  if (S.time - f.brain.lastCallT < RADIO_GAP) return;
+  f.brain.lastCallT = S.time;
+  S.callouts.push({ who: f.name, text, x, z, t: S.time });
+  if (S.callouts.length > 6) S.callouts.splice(0, S.callouts.length - 6);
+  S.pings.push({ x, z, t: S.time });
+  if (S.pings.length > 8) S.pings.splice(0, S.pings.length - 8);
+}
 
 // Assign routes + holds when a round starts. Attackers split 2/2/1 across
 // A/B/mid; defenders anchor two per site plus one mid floater.
@@ -28,6 +54,7 @@ export function assignRoles() {
     b.path = []; b.pathI = 0;
     b.target = -1; b.holdUntil = 0;
     b.aimErr = 0.045 - b.skill * 0.03;
+    b.plantCalled = false;
   });
   const holds = [10, 27, 16, 17, 29];
   def.forEach((f, i) => {
@@ -146,6 +173,7 @@ function think(map, f) {
       b.target = enemy.index;
       const delay = REACTION[1] + (REACTION[0] - REACTION[1]) * (1 - b.skill);
       b.reactAt = S.time + delay;
+      radio(f, `contact at ${zoneName(enemy.x, enemy.z)}`, enemy.x, enemy.z);
     }
     b.state = 'engage';
     return;
@@ -168,6 +196,8 @@ function think(map, f) {
     const d = Math.hypot(n.x - f.x, n.z - f.z);
     if (d < n.radius && b.state !== 'investigate' && b.state !== 'plant' && b.state !== 'defuse') {
       b.hearX = n.x; b.hearZ = n.z; b.hearT = S.time;
+      const heard = n.kind === 'shot' ? 'heard shots' : 'heard movement';
+      radio(f, `${heard} near ${zoneName(n.x, n.z)}`, n.x, n.z);
       if (f.team === 'defend' && b.state === 'hold' && S.rng() < 0.6) {
         b.state = 'investigate';
         b.investigateUntil = S.time + 5;
@@ -187,6 +217,10 @@ function think(map, f) {
       const site = b.route === 'B' ? 'B' : 'A';
       if (inSite(f, site)) {
         b.state = 'plant';
+        if (!b.plantCalled) {
+          b.plantCalled = true;
+          radio(f, `planting at site ${site}`, f.x, f.z);
+        }
         return;
       }
       if (b.state !== 'route' && b.state !== 'investigate') b.state = 'route';
@@ -402,6 +436,8 @@ export function stepBots(map, dt) {
 }
 
 // First paths for a fresh round: attackers to their lane, defenders to holds.
+// Attackers call their route on the radio as they leave, so the player
+// hears the plan instead of only reading it on the banner.
 export function sendBotsToPositions(map) {
   for (const f of S.fighters) {
     if (!f.isBot) continue;
@@ -409,6 +445,7 @@ export function sendBotsToPositions(map) {
     if (f.team === 'attack') {
       const t = siteTarget(b.route);
       routeTo(map, f, t.x, t.z);
+      radio(f, `pushing ${b.route}`, t.x, t.z);
     } else {
       const n = map.nodes[b.holdNode];
       if (n) routeTo(map, f, n[0], n[1]);

@@ -55,6 +55,10 @@ export const S = {
   // Player-facing transient feedback (consumed by HUD/effects)
   events: [], // {kind, ...} drained once per rendered frame
   kills: [], // killfeed entries {a, b, weapon, headshot, t}
+  // Radio chatter from teammate bots: {who, text, x, z, t}
+  callouts: [],
+  // Minimap pings where a teammate heard something: {x, z, t}
+  pings: [],
 
   // Input snapshot, written by input.js, read by the sim.
   input: {
@@ -122,6 +126,8 @@ export function makeFighter(index, team, name, isBot, x, z) {
       stuckT: 0, stuckX: 0, stuckZ: 0,
       nudgeUntil: 0, nudgeX: 0, nudgeZ: 0,
       scanDir: 1,
+      lastCallT: -99, // sim time of this bot's last radio callout
+      plantCalled: false, // plant callout already sent this round
     } : null,
     // Rendering handles, attached by the renderer (never sim truth).
     mesh: null, headMesh: null, gunMesh: null,
@@ -138,6 +144,7 @@ export function resetMatchState() {
   S.bomb.carrier = null; S.bomb.planter = null; S.bomb.defuser = null; S.bomb.progress = 0;
   S.fighters.length = 0; S.noises.length = 0; S.grenades.length = 0;
   S.smokes.length = 0; S.flashes.length = 0; S.events.length = 0; S.kills.length = 0;
+  S.callouts.length = 0; S.pings.length = 0;
   S.over = false; S.paused = false;
   S.view.recoilPitch = 0; S.view.recoilYaw = 0; S.view.flashBlind = 0;
   S.view.damageFlash = 0; S.view.spectate = -1;

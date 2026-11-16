@@ -1,4 +1,4 @@
-# Tidebreak Terminal — a three.js tactical FPS
+# Cranewatch — a three.js tactical FPS
 
 [![make.fun](https://make.fun/badge/threejs-fps-02.svg)](https://make.fun/bounty/threejs-fps-02)
 [![rank](https://make.fun/badge/threejs-fps-02/reyxnal/makefun-threejs-fps-02/rank.svg)](https://make.fun/bounty/threejs-fps-02)
@@ -14,12 +14,15 @@ two bomb sites. Win by eliminating the other team, detonating the device, or
 defusing it. Earn money every round and spend it in the buy menu: four
 weapons, armour, and three grenade types. Gunfire rewards stopping to aim:
 recoil and spread punish firing on the move, headshots pay triple, and bots
-follow routes, hold positions, and react to what they see and hear.
+follow routes, hold positions, and react to what they see and hear — calling
+it out on the team radio, with minimap pings, so you hear the plan as well as
+read it. Soldiers are articulated figures with nameplates; both bomb sites
+carry giant signs readable from the approach lanes.
 
 **Play it.** Serve `game/` with any static file server and open `index.html`
 in desktop Chrome — no build step, no network requests. Click to lock the
 mouse, WASD to move, Shift to walk, Ctrl/C to crouch, R to reload, B for the
-buy menu, E to plant/defuse, G to throw a grenade, 1–4 to switch weapons.
+buy menu, E to plant/defuse, G to throw a grenade, 1/2 to switch weapons.
 
 **How it is built.** `main.ts` (Node 22, standard library only) copies `game/`
 and `screenshots/` to the output directory and writes `dossier.json` with the

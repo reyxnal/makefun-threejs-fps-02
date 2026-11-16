@@ -45,14 +45,22 @@ export function applyShotSetup() {
     S.phase = 'live';
     S.phaseT = 80;
     giveRifle(me);
-    me.x = 0; me.z = -3; me.yaw = Math.PI; me.pitch = 0;
+    me.x = 0; me.z = -3; me.yaw = yawToward(0, -3, 2, 10); me.pitch = 0;
+    // The player fires live down the lane (input.fire is only ever cleared
+    // by a mouseup, and no mouse exists in shot mode): the frame captures
+    // a real tracer, a real muzzle flash, a real hitmarker — and, once a
+    // defender drops, a real killfeed line.
+    S.input.fire = true;
     // Two defenders up the lane, already engaging: their first real shots
     // are what the harness waits for. They hold far up the lane with wild
     // aim and the player wears armour, so the firefight is captured live
-    // instead of the player dropping before the shutter.
+    // instead of the player dropping before the shutter. The first
+    // defender is staged wounded, so the opening headshot drops him and
+    // the killfeed tells the story.
     const d1 = S.fighters[5], d2 = S.fighters[6];
-    placeBot(d1, 2.5, 14, 0);
-    placeBot(d2, -3, 16, 0);
+    placeBot(d1, 2, 10, 0);
+    placeBot(d2, -2.5, 12, 0);
+    d1.hp = 40;
     me.armour = 100;
     for (const d of [d1, d2]) {
       d.brain.state = 'engage';
@@ -72,14 +80,19 @@ export function applyShotSetup() {
     S.bomb.timer = 20;
     S.bomb.carrier = null;
     giveRifle(me);
-    me.x = -19; me.z = 1;
-    me.yaw = yawToward(me.x, me.z, -23, 9);
+    // Shot from the A-lane entrance, far enough back that the defender on
+    // the crane deck clears the deck edge in frame, with the giant site
+    // sign behind him and the planted charge in the foreground.
+    me.x = -15; me.z = -6;
+    me.yaw = yawToward(me.x, me.z, -24, 9);
     me.pitch = 0.05;
-    // A defender holds the crane deck above the planted charge.
+    // A defender holds the crane deck above the planted charge, at the
+    // deck's east end — clear of the site sign, which hangs on the mast.
     const d = S.fighters[5];
-    placeBot(d, -25, 10, yawToward(-25, 10, me.x, me.z));
+    placeBot(d, -19.5, 10, yawToward(-19.5, 10, me.x, me.z));
     d.y = 4; // standing on the deck
-    placeBot(S.fighters[1], -16, 3, yawToward(-16, 3, -23, 8));
+    // A teammate close by on the left, nameplate legible.
+    placeBot(S.fighters[1], -18, -2, yawToward(-18, -2, -23, 8));
   } else if (mode === 'end') {
     S.round = 8;
     S.score.attack = 4; S.score.defend = 3;

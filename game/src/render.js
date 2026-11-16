@@ -7,6 +7,7 @@ import { PALETTE, EYE_STAND } from './config.js';
 import { S } from './state.js';
 import { buildMap } from './map.js';
 import { mergeParts, mat4 } from './merge.js';
+import { nameplateTexture } from './textures.js';
 
 const _camPos = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -71,12 +72,22 @@ export function getMap() { return map; }
 export function getScene() { return scene; }
 export function getCamera() { return camera; }
 
-// --- Fighter bodies: simple articulated figures, team-coloured. ---
+// --- Fighter bodies: articulated figures with a readable human silhouette.
+// The sim's hit capsule is untouched by this: the mesh is presentation
+// only. The figure reads at combat range through three cues: the team
+// colour on the torso + helmet stripe, the dark kit (vest, visor, pack,
+// boots) breaking the outline, and the nameplate floating above the head.
 const bodyGeo = new THREE.BoxGeometry(0.52, 0.72, 0.3);
 const headGeo = new THREE.SphereGeometry(0.21, 12, 10);
+const padGeo = new THREE.BoxGeometry(0.2, 0.12, 0.32);
+const vestGeo = new THREE.BoxGeometry(0.4, 0.5, 0.08);
+const visorGeo = new THREE.BoxGeometry(0.3, 0.09, 0.08);
+const packGeo = new THREE.BoxGeometry(0.36, 0.46, 0.14);
 const legGeo = new THREE.BoxGeometry(0.2, 0.62, 0.22);
+const bootGeo = new THREE.BoxGeometry(0.22, 0.14, 0.3);
 const armGeo = new THREE.BoxGeometry(0.15, 0.6, 0.18);
 const gunGeo = new THREE.BoxGeometry(0.08, 0.12, 0.7);
+const magGeo = new THREE.BoxGeometry(0.07, 0.18, 0.12);
 
 export function buildFighterMeshes() {
   for (const m of fighterMeshes) scene.remove(m.group);
@@ -86,24 +97,57 @@ export function buildFighterMeshes() {
     const dark = new THREE.MeshLambertMaterial({ color: 0x232a33 });
     const team = new THREE.MeshLambertMaterial({ color, emissive: color, emissiveIntensity: 0.25 });
     const group = new THREE.Group();
-    // Torso + helmet share the team material: one merged mesh, and the
-    // coloured helmet keeps friend/foe readable at range.
+    // Torso + helmet + shoulder pads share the team material: one merged
+    // mesh, and the coloured helmet keeps friend/foe readable at range.
     const body = mergeParts([
       { geo: bodyGeo, matrix: mat4(0, 1.12, 0) },
       { geo: headGeo, matrix: mat4(0, 1.66, 0) },
+      { geo: padGeo, matrix: mat4(-0.33, 1.44, 0) },
+      { geo: padGeo, matrix: mat4(0.33, 1.44, 0) },
     ], team);
-    const legL = new THREE.Mesh(legGeo, dark); legL.position.set(-0.14, 0.36, 0);
-    const legR = new THREE.Mesh(legGeo, dark); legR.position.set(0.14, 0.36, 0);
+    // Dark kit: vest plate proud of the chest, visor slit on the helmet,
+    // and a pack on the back — the silhouette breaks that stop the figure
+    // reading as a single glowing blob.
+    const kit = mergeParts([
+      { geo: vestGeo, matrix: mat4(0, 1.12, 0.14) },
+      { geo: visorGeo, matrix: mat4(0, 1.68, 0.18) },
+      { geo: packGeo, matrix: mat4(0, 1.16, -0.2) },
+    ], dark);
+    // Legs swing around their centres; the boot is merged into each leg
+    // so the walk cycle carries it for free.
+    const legL = mergeParts([
+      { geo: legGeo, matrix: mat4(0, 0, 0) },
+      { geo: bootGeo, matrix: mat4(0, -0.26, 0.03) },
+    ], dark);
+    legL.position.set(-0.14, 0.36, 0);
+    const legR = mergeParts([
+      { geo: legGeo, matrix: mat4(0, 0, 0) },
+      { geo: bootGeo, matrix: mat4(0, -0.26, 0.03) },
+    ], dark);
+    legR.position.set(0.14, 0.36, 0);
     // Arms posed forward around the gun: one static merged mesh. The walk
     // cycle reads through the legs and the body bob, not the arms.
     const armsGun = mergeParts([
       { geo: armGeo, matrix: mat4(-0.34, 1.12, 0.1, -0.5) },
       { geo: armGeo, matrix: mat4(0.34, 1.12, 0.1, -0.5) },
       { geo: gunGeo, matrix: mat4(0.18, 1.22, 0.42) },
+      { geo: magGeo, matrix: mat4(0.18, 1.1, 0.3) },
     ], dark);
-    group.add(body, legL, legR, armsGun);
+    group.add(body, kit, legL, legR, armsGun);
+    // Nameplate: a sprite above the head, team-coloured, depth-tested so
+    // walls hide it like everything else. Never for the player themself.
+    let plate = null;
+    if (f.index !== 0) {
+      plate = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: nameplateTexture(f.name, f.team === 'attack' ? '#ffb340' : '#4fc3e8'),
+        transparent: true, depthWrite: false,
+      }));
+      plate.scale.set(1.9, 0.48, 1);
+      plate.position.set(0, 2.12, 0);
+      group.add(plate);
+    }
     scene.add(group);
-    const rec = { group, legL, legR, torso: body };
+    const rec = { group, legL, legR, torso: body, plate };
     fighterMeshes.push(rec);
     f.mesh = rec;
   }
@@ -120,8 +164,10 @@ export function syncFighters(time) {
     if (!f.alive) {
       m.group.position.set(f.x, f.y + 0.15, f.z);
       m.group.rotation.set(-Math.PI / 2 * 0.9, f.yaw, 0);
+      if (m.plate) m.plate.visible = false;
       continue;
     }
+    if (m.plate) m.plate.visible = true;
     m.group.position.set(f.x, f.y, f.z);
     m.group.rotation.set(0, f.yaw, 0);
     // Walk cycle: the legs swing with distance travelled.

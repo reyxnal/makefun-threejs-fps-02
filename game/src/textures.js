@@ -132,13 +132,34 @@ export function metalTexture() {
 }
 
 // Big painted site letter for the ground ("A" / "B"), transparent around it.
-export function letterTexture(letter) {
+// The sign panels reuse it with their own colour.
+export function letterTexture(letter, color = 'rgba(216,160,32,0.85)') {
   const [c, g] = canvas(256, 256);
   g.clearRect(0, 0, 256, 256);
   g.font = '800 190px system-ui, sans-serif';
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = 'rgba(216,160,32,0.85)';
+  g.fillStyle = color;
   g.fillText(letter, 128, 136);
+  const t = tex(c);
+  t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
+
+// Fighter nameplate: the bot's name in its team colour on a dark pill, so
+// it reads over bright sky and dark ground alike. Drawn once per bot and
+// shared by that bot's sprite for the whole match.
+export function nameplateTexture(name, colorCss) {
+  const [c, g] = canvas(256, 64);
+  g.clearRect(0, 0, 256, 64);
+  g.fillStyle = 'rgba(6,10,16,0.62)';
+  g.beginPath();
+  g.roundRect(28, 8, 200, 40, 20);
+  g.fill();
+  g.font = '700 26px system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = colorCss;
+  g.fillText(name, 128, 30);
+  g.fillRect(78, 52, 100, 4);
   const t = tex(c);
   t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.ClampToEdgeWrapping;
   return t;

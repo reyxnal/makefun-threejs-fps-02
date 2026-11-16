@@ -52,16 +52,20 @@ export function initEffects(aScene, aCamera) {
   rain.frustumCulled = false;
   scene.add(rain);
 
-  // Tracer pool: one line per in-flight tracer, fading fast.
+  // Tracer pool: thin additive cylinders, oriented along each shot. A 1px
+  // line vanishes at range and at low render resolution; a cylinder reads
+  // as a streak of fire from any angle, in motion and in a still frame.
+  const tracerGeo = new THREE.CylinderGeometry(0.03, 0.03, 1, 6, 1, true);
   for (let i = 0; i < TRACER_POOL; i++) {
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
-    const mat = new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0 });
-    const line = new THREE.Line(geo, mat);
-    line.visible = false;
-    line.frustumCulled = false;
-    scene.add(line);
-    tracers.push({ line, life: 0 });
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffd9a0, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(tracerGeo, mat);
+    mesh.visible = false;
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    tracers.push({ mesh, life: 0, maxLife: 0.16 });
   }
 
   // Particle pool: one Points cloud, per-particle velocity + life in JS.
@@ -88,7 +92,7 @@ export function initEffects(aScene, aCamera) {
     spr.scale.set(0.6, 0.6, 1);
     spr.visible = false;
     scene.add(spr);
-    flashPool.push({ spr, life: 0 });
+    flashPool.push({ spr, life: 0, maxLife: 0.08, peak: 0.95 });
   }
 
   // The bomb: a dark case with a blinking LED.
@@ -117,14 +121,23 @@ function resetDrop(i, anywhere) {
   rainPos[i * 6 + 3] = x + 0.06; rainPos[i * 6 + 4] = y - 0.55; rainPos[i * 6 + 5] = z + 0.02;
 }
 
+const _up = new THREE.Vector3(0, 1, 0);
+const _tracerDir = new THREE.Vector3();
 function spawnTracer(x1, y1, z1, x2, y2, z2) {
   const t = tracers.find((tr) => tr.life <= 0) || tracers[0];
-  const p = t.line.geometry.attributes.position.array;
-  p[0] = x1; p[1] = y1; p[2] = z1; p[3] = x2; p[4] = y2; p[5] = z2;
-  t.line.geometry.attributes.position.needsUpdate = true;
-  t.line.visible = true;
-  t.line.material.opacity = 0.85;
-  t.life = 0.09;
+  _tracerDir.set(x2 - x1, y2 - y1, z2 - z1);
+  const len = Math.max(0.1, _tracerDir.length());
+  _tracerDir.normalize();
+  t.mesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+  t.mesh.quaternion.setFromUnitVectors(_up, _tracerDir);
+  t.mesh.scale.set(1, len, 1);
+  t.mesh.visible = true;
+  t.mesh.material.opacity = 0.9;
+  // The fight screenshot holds its tracers for the shutter: each one is a
+  // real shot, kept on screen until the capture lands (main.js freezes
+  // the sim the moment the shot is ready).
+  t.maxLife = S.shotMode === 'fight' ? 999 : 0.16;
+  t.life = t.maxLife;
 }
 
 function spawnParticles(x, y, z, n, color, speed, life) {
@@ -152,28 +165,49 @@ function spawnFlash(x, y, z, scale) {
   f.spr.scale.set(scale, scale, 1);
   f.spr.material.rotation = Math.random() * Math.PI;
   f.spr.visible = true;
-  f.spr.material.opacity = 0.95;
-  f.life = 0.045;
+  // Held flashes (fight shot) sit at a dimmer peak: several stacked
+  // additive sprites at full opacity white the frame out.
+  f.peak = S.shotMode === 'fight' ? 0.5 : 0.95;
+  f.spr.material.opacity = f.peak;
+  f.maxLife = S.shotMode === 'fight' ? 999 : 0.08;
+  f.life = f.maxLife;
 }
 
 const _muzzle = new THREE.Vector3();
 export function onEffectEvent(e) {
   if (e.kind === 'shot') {
-    // Tracer origin: the shooter's gun. For the player that is the
-    // viewmodel muzzle (in front of the camera); for bots, the chest gun.
+    // Tracer origin: the shooter's gun — the viewmodel muzzle for the
+    // player, the chest gun for bots. The player's own tracer starts
+    // 2.5 m down the shot: a cylinder beginning 0.6 m from the lens fills
+    // the frame with its near end. The flash stays at the muzzle.
     const shooter = S.fighters[e.by];
     let ox = e.x, oy = e.y - 0.25, oz = e.z;
+    let tx0 = ox, ty0 = oy, tz0 = oz;
     if (e.by === 0) {
       _muzzle.set(0.18, -0.14, -0.6).applyMatrix4(camera.matrixWorld);
       ox = _muzzle.x; oy = _muzzle.y; oz = _muzzle.z;
+      const dx = e.tx - e.x, dy = e.ty - e.y, dz = e.tz - e.z;
+      const dl = Math.hypot(dx, dy, dz) || 1;
+      const lead = Math.min(2.5, dl * 0.5);
+      tx0 = e.x + (dx / dl) * lead; ty0 = e.y + (dy / dl) * lead; tz0 = e.z + (dz / dl) * lead;
     } else if (shooter) {
       oy = shooter.y + 1.2;
+      ty0 = oy;
     }
-    spawnTracer(ox, oy, oz, e.tx, e.ty, e.tz);
-    spawnFlash(ox, oy, oz, 0.5);
+    spawnTracer(tx0, ty0, tz0, e.tx, e.ty, e.tz);
+    // The player's own flash sits 0.6 m from the camera: at full size it
+    // whites out the held fight frame, so it is staged smaller there.
+    const flashScale = (e.by === 0 && S.shotMode === 'fight') ? 0.35 : 0.6;
+    spawnFlash(ox, oy, oz, flashScale);
     if (e.hit) spawnParticles(e.tx, e.ty, e.tz, 5, 0x8a1f1a, 1.6, 0.5);
     else spawnParticles(e.tx, e.ty, e.tz, 4, 0xb8b0a0, 1.4, 0.4);
-    if (S.shotMode === 'fight' && !window.__shotReady) window.__shotReady = true;
+    // The fight shot is ready once a real shot has flown AND the radio has
+    // spoken: the frame then shows the tracer, the flash and the callout
+    // feed together. (The S.time > 4 fallback in main.js covers a silent
+    // radio.)
+    if (S.shotMode === 'fight' && S.callouts.length > 0 && !window.__shotReady) {
+      window.__shotReady = true;
+    }
   } else if (e.kind === 'explosion') {
     spawnParticles(e.x, e.y + 0.3, e.z, 40, 0xff8c30, 6, 0.9);
     spawnParticles(e.x, e.y + 0.3, e.z, 24, 0x5a5a5a, 3.5, 1.3);
@@ -270,15 +304,15 @@ export function updateEffects(dt, time) {
   for (const t of tracers) {
     if (t.life > 0) {
       t.life -= dt;
-      t.line.material.opacity = Math.max(0, t.life / 0.09) * 0.85;
-      if (t.life <= 0) t.line.visible = false;
+      t.mesh.material.opacity = Math.max(0, t.life / t.maxLife) * 0.9;
+      if (t.life <= 0) t.mesh.visible = false;
     }
   }
 
   for (const f of flashPool) {
     if (f.life > 0) {
       f.life -= dt;
-      f.spr.material.opacity = Math.max(0, f.life / 0.045) * 0.95;
+      f.spr.material.opacity = Math.max(0, f.life / f.maxLife) * f.peak;
       if (f.life <= 0) f.spr.visible = false;
     }
   }

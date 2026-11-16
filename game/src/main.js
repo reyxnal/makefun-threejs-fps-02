@@ -1,4 +1,4 @@
-// Tidebreak Terminal — boot, fixed-step loop, and wiring.
+// Cranewatch — boot, fixed-step loop, and wiring.
 // The simulation advances in fixed SIM_DT steps kept apart from rendering:
 // the accumulator below steps the sim zero or more times per animation frame
 // and rendering always draws the latest sim state. Each rendered frame
@@ -190,9 +190,12 @@ function frame(now) {
   inputCtl.poll();
   // Staged shots (except 'fight') render a frozen arrangement: the sim
   // does not advance, so nobody can die or wander before the capture.
-  // 'fight' needs a live sim so a real tracer can fly.
+  // 'fight' runs live until its first shot + radio callout land, then
+  // freezes on that exact frame so the held tracer and flash survive
+  // until the shutter (effects.js holds them; the sim simply stops).
   const liveShot = S.shotMode === 'fight';
-  const stepping = S.started && !S.over && !S.paused && (!S.shotMode || liveShot);
+  const stepping = S.started && !S.over && !S.paused
+    && (!S.shotMode || (liveShot && !window.__shotReady));
   const t0 = perfOn ? performance.now() : 0;
   if (stepping) {
     acc += elapsed;

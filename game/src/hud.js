@@ -17,6 +17,7 @@ let hitmarkT = 0;
 let bannerT = 0;
 let lastClock = '', lastScore = '', lastMoney = -1, lastHp = -1, lastAr = -1;
 let lastAmmo = '', lastNades = '', lastTeam = '', lastFeed = -1, lastPrompt = '';
+let lastRadio = -1, radioNext = 0;
 let mm = null; // minimap 2d context
 
 export function initHud(map, requestLock) {
@@ -25,7 +26,7 @@ export function initHud(map, requestLock) {
   for (const id of ['clock', 'round-lbl', 'score-a', 'score-b', 'bomb-lbl', 'bomb-bar', 'bomb-fill',
     'money-num', 'money-box', 'hp-num', 'hp-fill', 'ar-num', 'ar-fill', 'ammo-mag', 'ammo-res',
     'wpn-name', 'nade-row', 'xhair', 'hitmark', 'vignette', 'flashov', 'banner', 'prompt',
-    'progress', 'progress-fill', 'teamlist', 'killfeed', 'spectate', 'buy', 'buy-rows',
+    'progress', 'progress-fill', 'teamlist', 'killfeed', 'radio-feed', 'spectate', 'buy', 'buy-rows',
     'end-screen', 'end-title', 'end-sub', 'minimap']) {
     els[id] = $(id);
   }
@@ -95,12 +96,14 @@ function showBanner(big, sub, cls) {
 export function onHudEvent(e) {
   switch (e.kind) {
     case 'hitmark':
-      hitmarkT = 0.18;
+      // The fight screenshot holds the hitmarker for the shutter, like the
+      // tracer it belongs to; in play it flashes for a quarter second.
+      hitmarkT = S.shotMode === 'fight' ? 5 : 0.25;
       els.hitmark.classList.toggle('kill', false);
       break;
     case 'kill':
       if (e.a === 0) {
-        hitmarkT = 0.3;
+        hitmarkT = S.shotMode === 'fight' ? 5 : 0.3;
         els.hitmark.classList.add('kill');
       }
       break;
@@ -113,9 +116,18 @@ export function onHudEvent(e) {
       );
       break;
     }
-    case 'roundstart':
-      showBanner(`ROUND ${e.round}`, 'First to 8 takes the match', '');
+    case 'roundstart': {
+      // The banner carries the team plan: every teammate's assigned route
+      // plus who carries the charge — the same plan the bots then execute.
+      const mates = S.fighters.filter((g) => g.team === 'attack' && g.isBot);
+      const plan = mates.map((g) => `${g.name}→${g.brain.route ?? '?'}`).join(' · ');
+      const carrier = S.bomb.carrier != null ? S.fighters[S.bomb.carrier] : null;
+      const carry = carrier
+        ? (carrier.index === 0 ? 'You carry the charge' : `${carrier.name} carries the charge`)
+        : '';
+      showBanner(`ROUND ${e.round}`, [plan, carry].filter(Boolean).join('  —  '), '');
       break;
+    }
     case 'matchend': {
       const youWon = e.winner === 'attack';
       els['end-title'].textContent = youWon ? 'BREAKERS TAKE THE MATCH' : 'WATCH HOLDS THE TERMINAL';
@@ -168,6 +180,17 @@ function drawMinimap() {
     mm.beginPath();
     mm.arc(px(S.bomb.x), pz(S.bomb.z), 3, 0, 7);
     mm.fill();
+  }
+  // Radio pings: expanding rings where a teammate heard something, fading
+  // out over ~1.6 s. The ring marks the sound, never an enemy position.
+  for (const p of S.pings) {
+    const age = S.time - p.t;
+    if (age < 0 || age > 1.6) continue;
+    mm.strokeStyle = `rgba(255,179,64,${(1 - age / 1.6).toFixed(2)})`;
+    mm.lineWidth = 1.5;
+    mm.beginPath();
+    mm.arc(px(p.x), pz(p.z), 3 + age * 9, 0, 7);
+    mm.stroke();
   }
   // Fighters: teammates amber, enemies cyan only when recently seen is too
   // generous — show teammates always, enemies never. The player is white.
@@ -250,8 +273,10 @@ export function syncHud(dt) {
     `${k === f.nadeSel ? '<b>' : ''}${k.toUpperCase()} ×${f.grenades[k]}${k === f.nadeSel ? '</b>' : ''}`).join(' · ');
   if (nades !== lastNades) { els['nade-row'].innerHTML = nades; lastNades = nades; }
 
-  // Crosshair gap grows with spread (bloom + movement), shrinks on ADS.
-  const gap = Math.min(26, 7 + (f.bloom * 220) + f.moving * 7 - (S.input.ads ? 4 : 0));
+  // Crosshair gap grows with spread (bloom + movement), shrinks on ADS —
+  // the gap is the gun's current cone, drawn honestly. Firing visibly
+  // opens it; stopping to aim visibly closes it.
+  const gap = Math.min(30, 7 + (f.bloom * 260) + f.moving * 9 - (S.input.ads ? 4 : 0));
   const parts = els.xhair.children;
   parts[0].style.left = `${-9 - gap}px`; parts[1].style.left = `${gap}px`;
   parts[2].style.top = `${-9 - gap}px`; parts[3].style.top = `${gap}px`;
@@ -323,6 +348,18 @@ export function syncHud(dt) {
     }
     els.killfeed.innerHTML = html;
     lastFeed = S.kills.length;
+  }
+
+  // Radio feed: last 4 teammate callouts, expiring after 6 s. Rebuilt on
+  // new chatter and twice a sim-second, so expired lines leave on time.
+  if (S.callouts.length !== lastRadio || S.time > radioNext) {
+    const now = S.time;
+    const recent = S.callouts.filter((c) => now - c.t < 6).slice(-4);
+    let html = '<div class="radio-h">RADIO</div>';
+    for (const c of recent) html += `<div><b>${c.who}</b> ${c.text}</div>`;
+    els['radio-feed'].innerHTML = html;
+    lastRadio = S.callouts.length;
+    radioNext = S.time + 0.5;
   }
 
   drawMinimap();
