@@ -1,6 +1,7 @@
 // The single shared state object. Every module reads and writes this one
 // object (imported as S); nothing keeps a private copy of sim truth.
 // Rendering-only caches live on the objects that own them, never here.
+import { EYE_STAND, EYE_CROUCH } from './config.js';
 
 // Mulberry32: small, fast, seedable. The match seeds it once; screenshot
 // mode seeds it with a fixed value so staged shots are reproducible.
@@ -70,7 +71,7 @@ export const S = {
   view: {
     yaw: 0, pitch: 0,
     recoilPitch: 0, recoilYaw: 0, // unrecovered kick, decays in sim
-    bobPhase: 0, bobAmp: 0,
+    bobPhase: 0, bobAmp: 0, eyeH: EYE_STAND,
     fov: 75,
     flashBlind: 0, // 0..1 white-out strength
     damageFlash: 0, // 0..1 red vignette strength
@@ -84,7 +85,7 @@ export function makeFighter(index, team, name, isBot, x, z) {
   return {
     index, team, name, isBot,
     alive: true,
-    x, z, y: 0, vy: 0, // feet position; y is height above ground
+    x, z, y: 0, vx: 0, vy: 0, vz: 0, // feet position; y is height above ground
     yaw: team === 'attack' ? Math.PI : 0, // face the enemy spawn
     pitch: 0,
     hp: 100, armour: 0,
@@ -94,13 +95,15 @@ export function makeFighter(index, team, name, isBot, x, z) {
     mag: { p9: 12, k7: 0, r4: 0, l96: 0 },
     reserve: { p9: 48, k7: 0, r4: 0, l96: 0 },
     reloading: 0, // seconds left, 0 = not reloading
-    fireCooldown: 0,
+    fireCooldown: 0, switchT: 0, throwCd: 0,
     bloom: 0, // accumulated spread from firing
+    flash: 0, // seconds of flash blindness remaining
     grenades: { frag: 0, smoke: 0, flash: 0 },
     nadeSel: 'frag',
     crouch: false,
     moving: 0, // 0..1 speed fraction, for spread + sound
     airborne: false,
+    stepAcc: 0,
     // Bot brain (unused for the human)
     brain: isBot ? {
       state: 'route', // route | hold | engage | investigate | plant | defuse | rotate
@@ -114,6 +117,11 @@ export function makeFighter(index, team, name, isBot, x, z) {
       aimErr: 0.02,
       route: null, // 'A' | 'B' | 'mid'
       holdNode: -1,
+      skill: 0.55 + (index % 5) * 0.07,
+      burstLeft: 0, burstPause: 0, thinkAcc: 0,
+      stuckT: 0, stuckX: 0, stuckZ: 0,
+      nudgeUntil: 0, nudgeX: 0, nudgeZ: 0,
+      scanDir: 1,
     } : null,
     // Rendering handles, attached by the renderer (never sim truth).
     mesh: null, headMesh: null, gunMesh: null,
@@ -133,4 +141,18 @@ export function resetMatchState() {
   S.over = false; S.paused = false;
   S.view.recoilPitch = 0; S.view.recoilYaw = 0; S.view.flashBlind = 0;
   S.view.damageFlash = 0; S.view.spectate = -1;
+  S.view.eyeH = EYE_STAND; S.view.bobPhase = 0; S.view.bobAmp = 0;
+}
+
+// Eye position of a fighter (stand/crouch height from config).
+export function eyePos(f) {
+  const h = f.crouch ? EYE_CROUCH : EYE_STAND;
+  return { x: f.x, y: f.y + h, z: f.z };
+}
+
+// Unit forward vector from yaw/pitch (three.js camera convention:
+// yaw 0 looks down -Z, positive pitch looks up).
+export function forwardVec(yaw, pitch) {
+  const cp = Math.cos(pitch);
+  return { x: -Math.sin(yaw) * cp, y: Math.sin(pitch), z: -Math.cos(yaw) * cp };
 }

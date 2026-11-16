@@ -42,17 +42,15 @@ export function stepPlayer(map, dt) {
   // Ground control is snappy; air control is weak, so jumps commit you.
   const rate = f.airborne ? 2.2 : 10;
   const k = Math.min(1, rate * dt);
-  f.vx = (f.vx ?? 0) + (wx * speed - (f.vx ?? 0)) * k;
-  f.vz = (f.vz ?? 0) + (wz * speed - (f.vz ?? 0)) * k;
+  f.vx += (wx * speed - f.vx) * k;
+  f.vz += (wz * speed - f.vz) * k;
 
   // --- Integrate + collide (circle vs map AABBs). ---
   const pos = { x: f.x + f.vx * dt, z: f.z + f.vz * dt };
-  const feetY = f.y;
-  map.resolveCircle(pos, feetY, PLAYER_RADIUS, PLAYER_HEIGHT);
+  map.resolveCircle(pos, f.y, PLAYER_RADIUS, PLAYER_HEIGHT);
   f.x = pos.x; f.z = pos.z;
 
   // --- Vertical: gravity, jump, land on the walkable surface. ---
-  const ground = map.groundHeightAt(f.x, f.z, f.y);
   if (input.jump && !f.airborne) {
     f.vy = JUMP_SPEED; f.airborne = true;
     S.events.push({ kind: 'jump' });
@@ -78,10 +76,10 @@ export function stepPlayer(map, dt) {
 
   // Eye height eases between stand and crouch.
   const targetEye = crouch ? EYE_CROUCH : EYE_STAND;
-  view.eyeH = (view.eyeH ?? EYE_STAND) + (targetEye - (view.eyeH ?? EYE_STAND)) * Math.min(1, 12 * dt);
+  view.eyeH += (targetEye - view.eyeH) * Math.min(1, 12 * dt);
 
   // --- Footsteps: audible unless walking quietly or crouched. ---
-  f.stepAcc = (f.stepAcc ?? 0) + hSpeed * dt;
+  f.stepAcc += hSpeed * dt;
   const stride = crouch || input.quiet ? 3.4 : 2.3;
   if (f.stepAcc > stride && hSpeed > 0.5 && !f.airborne) {
     f.stepAcc = 0;
@@ -89,23 +87,12 @@ export function stepPlayer(map, dt) {
     if (!crouch && !input.quiet) S.noises.push({ x: f.x, z: f.z, radius: 7, kind: 'step' });
   }
 
-  // --- Recoil + bloom recover; stopping to aim pays. ---
+  // --- Recoil recovers; stopping to aim pays. ---
+  // (Bloom, cooldowns and reload completion live in weapons.stepFighterTimers,
+  // shared with the bots, so this file only owns movement + the view.)
   const recover = Math.min(1, 3.2 * dt);
   view.recoilPitch *= (1 - recover);
   view.recoilYaw *= (1 - recover);
-  f.bloom = Math.max(0, f.bloom - dt * 1.9);
-  f.fireCooldown = Math.max(0, f.fireCooldown - dt);
-  if (f.reloading > 0) {
-    f.reloading -= dt;
-    if (f.reloading <= 0) {
-      const w = currentWeaponId(f);
-      const need = weaponMagSize(w) - f.mag[w];
-      const take = Math.min(need, f.reserve[w]);
-      f.mag[w] += take; f.reserve[w] -= take;
-      f.reloading = 0;
-      S.events.push({ kind: 'reloaded' });
-    }
-  }
 }
 
 // Helpers shared with weapons.js (kept here to avoid a circular import).
