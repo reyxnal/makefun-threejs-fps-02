@@ -30,6 +30,11 @@ export function initRender(container) {
   camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 220);
   scene.add(camera);
 
+  // A faint helmet lamp: lights the first-person weapon without washing
+  // the night (2 m range, falls off fast).
+  const fill = new THREE.PointLight(0xbfd0e8, 0.55, 2, 2);
+  camera.add(fill);
+
   // Moonlight + wet-night ambient. The map's lamps add the warm pools.
   const hemi = new THREE.HemisphereLight(0x8fa8c8, 0x1a2028, 0.9);
   scene.add(hemi);

@@ -16,10 +16,7 @@ export function attachInput(canvas, hooks) {
       if (e.code === 'KeyB') input.buyToggle = true;
       if (e.code === 'KeyQ') input.nadeCycle = true;
       if (e.code === 'KeyG') input.nadeThrow = true;
-      if (e.code === 'Digit1') input.slot = 1;
-      if (e.code === 'Digit2') input.slot = 2;
-      if (e.code === 'Digit3') input.slot = 3;
-      if (e.code === 'Digit4') input.slot = 4;
+      if (e.code.startsWith('Digit')) input.digit = Number(e.code.slice(5));
       if (e.code === 'Space') { input.jump = true; e.preventDefault(); }
     };
   }

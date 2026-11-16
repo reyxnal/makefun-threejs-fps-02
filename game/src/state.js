@@ -62,7 +62,7 @@ export const S = {
     fire: false, fireEdge: false, ads: false,
     lookDX: 0, lookDY: 0, // accumulated mouse deltas, consumed per step
     reload: false, use: false, useEdge: false,
-    slot: 0, // weapon slot key pressed (0 = none)
+    digit: 0, // number key pressed (0 = none); buy menu or weapon slots
     nadeCycle: false, nadeThrow: false, buyToggle: false,
   },
   keys: {}, // raw key state by code, for menus

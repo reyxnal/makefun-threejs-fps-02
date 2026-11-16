@@ -94,6 +94,8 @@
   #fadeov { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .4s; }
 
   #teamlist { position: absolute; left: 18px; top: 84px; font-size: 12px; line-height: 1.8; text-shadow: 0 1px 3px #000; }
+
+  #minimap { position: absolute; left: 18px; bottom: 118px; border: 1px solid var(--line); border-radius: 6px; }
   #teamlist .dead { opacity: .35; text-decoration: line-through; }
   #teamlist .atk { color: var(--amber); }
   #teamlist .def { color: var(--cyan); }
@@ -151,6 +153,7 @@
 
   <div id="money-box" class="panel"><span class="lbl">Funds</span><span id="money-num">$800</span></div>
   <div id="teamlist"></div>
+  <canvas id="minimap" width="148" height="112"></canvas>
   <div id="killfeed"></div>
 
   <div id="vitals" class="panel">
@@ -188,7 +191,7 @@
     <b>Shift / Ctrl</b><span>Walk quietly / crouch</span>
     <b>Space</b><span>Jump</span>
     <b>R</b><span>Reload</span>
-    <b>1 – 4</b><span>Weapons</span>
+    <b>1 / 2</b><span>Primary / sidearm</span>
     <b>Q / G</b><span>Pick grenade / throw</span>
     <b>B</b><span>Buy menu (freeze time)</span>
     <b>E (hold)</b><span>Plant / defuse the charge</span>
