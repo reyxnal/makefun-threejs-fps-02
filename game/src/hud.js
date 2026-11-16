@@ -264,14 +264,15 @@ export function syncHud(dt) {
   }
   els.vignette.style.opacity = S.view.damageFlash;
   els.flashov.style.opacity = S.view.flashBlind;
-  if (bannerT > 0) {
-    bannerT -= dt;
-    if (bannerT <= 0) els.banner.style.display = 'none';
-  }
+  if (bannerT > 0) bannerT -= dt;
+  // The banner and the prompt step aside while the buy menu is open, so
+  // the menu never fights them for the same screen space.
+  els.banner.style.display = (bannerT > 0 && !buyOpen) ? 'block' : 'none';
 
   // Contextual prompt + channel progress.
   let prompt = '';
-  if (!f.alive) prompt = '';
+  if (buyOpen) prompt = '';
+  else if (!f.alive) prompt = '';
   else if (S.phase === 'freeze') prompt = 'Press <b>B</b> to buy — round starts soon';
   else if (S.bomb.state === 'carried' && S.bomb.carrier === 0 && S.phase === 'live') {
     const inA = f.x >= MAP.sites.A.minX && f.x <= MAP.sites.A.maxX && f.z >= MAP.sites.A.minZ && f.z <= MAP.sites.A.maxZ;

@@ -47,14 +47,18 @@ export function applyShotSetup() {
     giveRifle(me);
     me.x = 0; me.z = -3; me.yaw = Math.PI; me.pitch = 0;
     // Two defenders up the lane, already engaging: their first real shots
-    // are what the harness waits for.
+    // are what the harness waits for. They hold far up the lane with wild
+    // aim and the player wears armour, so the firefight is captured live
+    // instead of the player dropping before the shutter.
     const d1 = S.fighters[5], d2 = S.fighters[6];
-    placeBot(d1, 2.5, 7, 0);
-    placeBot(d2, -3, 9, 0);
+    placeBot(d1, 2.5, 14, 0);
+    placeBot(d2, -3, 16, 0);
+    me.armour = 100;
     for (const d of [d1, d2]) {
       d.brain.state = 'engage';
       d.brain.target = 0;
       d.brain.reactAt = 0;
+      d.brain.aimErr = 0.35;
       d.brain.lastSeenX = me.x; d.brain.lastSeenZ = me.z; d.brain.lastSeenT = 0;
     }
     // A teammate holds the lane beside the player.
